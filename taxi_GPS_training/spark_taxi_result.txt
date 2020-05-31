@@ -1,0 +1,199 @@
+scala> import org.apache.spark._
+import org.apache.spark._
+
+scala> import org.apache.spark.sql._
+import org.apache.spark.sql._
+
+scala> import org.apache.spark.sql.types._
+import org.apache.spark.sql.types._
+
+scala> import org.apache.spark.sql.functions._
+import org.apache.spark.sql.functions._
+
+scala> import org.apache.spark.ml.feature.VectorAssembler
+import org.apache.spark.ml.feature.VectorAssembler
+
+scala> import org.apache.spark.ml.clustering.KMeans
+import org.apache.spark.ml.clustering.KMeans
+
+scala> 
+
+scala> val fieldSchema = StructType(Array(
+     |       StructField("TID", StringType, true),
+     |       StructField("Lat", DoubleType, true),
+     |       StructField("Lon", DoubleType, true),
+     |       StructField("Time", StringType, true)
+     | ))
+fieldSchema: org.apache.spark.sql.types.StructType = StructType(StructField(TID,StringType,true), StructField(Lat,DoubleType,true), StructField(Lon,DoubleType,true), StructField(Time,StringType,true))
+
+scala> 
+
+scala> val taxiDF = spark.read.format("csv").option("header","false").schema(fieldSchema).load("/sparkml/wei/taxi.csv")
+taxiDF: org.apache.spark.sql.DataFrame = [TID: string, Lat: double ... 2 more fields]
+
+scala> taxiDF.show()
++---+---------+----------+------+
+|TID|      Lat|       Lon|  Time|
++---+---------+----------+------+
+|  1|30.624806|104.136604|211846|
+|  1|30.624809|104.136612|211815|
+|  1|30.624811|104.136587|212017|
+|  1|30.624811|104.136596|211916|
+|  1|30.624811|104.136619|211744|
+|  1|30.624813|104.136589|211946|
+|  1|30.624815|104.136585|212118|
+|  1|30.624815|104.136587|212048|
+|  1|30.624815|104.136639|211714|
+|  1|30.624816|104.136569|212250|
+|  1|30.624816|104.136574|212219|
+|  1|30.624816|104.136577|212149|
+|  1|30.624818|104.136564|212320|
+|  1|30.624818|104.136621|211542|
+|  1| 30.62482|104.136631|211643|
+|  1| 30.62482|104.136644|211613|
+|  1|30.624823|104.136582|211511|
+|  1|30.624826|104.136556|212351|
+|  1|30.624828|104.136552|212451|
+|  1|30.624828|104.136556|212421|
++---+---------+----------+------+
+only showing top 20 rows
+
+
+scala> 
+
+scala> val columns = Array("Lat","Lon")
+columns: Array[String] = Array(Lat, Lon)
+
+scala> val va = new VectorAssembler().setInputCols(columns).setOutputCol("features")
+va: org.apache.spark.ml.feature.VectorAssembler = vecAssembler_f787647a6ff4
+
+scala> val taxiDF2 = va.transform(taxiDF)
+taxiDF2: org.apache.spark.sql.DataFrame = [TID: string, Lat: double ... 3 more fields]
+
+scala> taxiDF2.show()
++---+---------+----------+------+--------------------+
+|TID|      Lat|       Lon|  Time|            features|
++---+---------+----------+------+--------------------+
+|  1|30.624806|104.136604|211846|[30.624806,104.13...|
+|  1|30.624809|104.136612|211815|[30.624809,104.13...|
+|  1|30.624811|104.136587|212017|[30.624811,104.13...|
+|  1|30.624811|104.136596|211916|[30.624811,104.13...|
+|  1|30.624811|104.136619|211744|[30.624811,104.13...|
+|  1|30.624813|104.136589|211946|[30.624813,104.13...|
+|  1|30.624815|104.136585|212118|[30.624815,104.13...|
+|  1|30.624815|104.136587|212048|[30.624815,104.13...|
+|  1|30.624815|104.136639|211714|[30.624815,104.13...|
+|  1|30.624816|104.136569|212250|[30.624816,104.13...|
+|  1|30.624816|104.136574|212219|[30.624816,104.13...|
+|  1|30.624816|104.136577|212149|[30.624816,104.13...|
+|  1|30.624818|104.136564|212320|[30.624818,104.13...|
+|  1|30.624818|104.136621|211542|[30.624818,104.13...|
+|  1| 30.62482|104.136631|211643|[30.62482,104.136...|
+|  1| 30.62482|104.136644|211613|[30.62482,104.136...|
+|  1|30.624823|104.136582|211511|[30.624823,104.13...|
+|  1|30.624826|104.136556|212351|[30.624826,104.13...|
+|  1|30.624828|104.136552|212451|[30.624828,104.13...|
+|  1|30.624828|104.136556|212421|[30.624828,104.13...|
++---+---------+----------+------+--------------------+
+only showing top 20 rows
+
+
+scala> 
+
+scala> taxiDF2.cache()
+res2: taxiDF2.type = [TID: string, Lat: double ... 3 more fields]
+
+scala> val traintestratio = Array(0.8,0.2)
+traintestratio: Array[Double] = Array(0.8, 0.2)
+
+scala> val Array(traindata,testdata) = taxiDF2.randomSplit(traintestratio,4484)
+traindata: org.apache.spark.sql.Dataset[org.apache.spark.sql.Row] = [TID: string, Lat: double ... 3 more fields]
+testdata: org.apache.spark.sql.Dataset[org.apache.spark.sql.Row] = [TID: string, Lat: double ... 3 more fields]
+
+scala> val km = new KMeans().setK(10).setFeaturesCol("features").setPredictionCol("prediction") .fit(taxiDF2)
+2020-01-07 12:35:21,517 WARN clustering.KMeans: The input data is not directly cached, which may hurt performance if its parent RDDs are also uncached.
+2020-01-07 12:35:24,915 WARN netlib.BLAS: Failed to load implementation from: com.github.fommil.netlib.NativeSystemBLAS
+2020-01-07 12:35:24,916 WARN netlib.BLAS: Failed to load implementation from: com.github.fommil.netlib.NativeRefBLAS
+2020-01-07 12:35:31,964 WARN clustering.KMeans: The input data was not directly cached, which may hurt performance if its parent RDDs are also uncached.
+km: org.apache.spark.ml.clustering.KMeansModel = kmeans_9a306d209338
+
+scala> val kmresult = km.clusterCenters
+kmresult: Array[org.apache.spark.ml.linalg.Vector] = Array([30.673148494635097,104.07578476841387], [30.72412085030872,103.87397208853098], [30.927353901972033,103.62885306030289], [30.59401354785786,103.98592269758088], [30.635381552525054,104.11394199019651], [30.537256303673082,104.05842847715851], [30.753202695449705,104.13250414652543], [30.627461571635052,104.05898271875064], [30.672885436261897,104.01931668552281], [30.56862618296974,104.30709651618582])
+
+scala> val kmRDD1 = spark.sparkContext.parallelize(kmresult)
+kmRDD1: org.apache.spark.rdd.RDD[org.apache.spark.ml.linalg.Vector] = ParallelCollectionRDD[87] at parallelize at <console>:39
+
+scala> val kmRDD2 = kmRDD1.map(k=>(k(1),k(0)))
+kmRDD2: org.apache.spark.rdd.RDD[(Double, Double)] = MapPartitionsRDD[88] at map at <console>:39
+
+scala> kmRDD2.saveAsTextFile("/sparkml/wei/kmResult")
+
+scala> 
+
+scala> val prediction = km.transform(testdata)
+prediction: org.apache.spark.sql.DataFrame = [TID: string, Lat: double ... 4 more fields]
+
+scala> prediction.createTempView("haha")
+
+scala> val tmpQuery = spark.sql("select substring(Time,0,2) as hour,prediction from haha")
+2020-01-07 12:35:43,942 WARN metastore.ObjectStore: Failed to get database global_temp, returning NoSuchObjectException
+tmpQuery: org.apache.spark.sql.DataFrame = [hour: string, prediction: int]
+
+scala> val predictCount = tmpQuery.groupBy("hour","prediction").agg(count("prediction").alias("count")).orderBy(desc("count"))
+predictCount: org.apache.spark.sql.Dataset[org.apache.spark.sql.Row] = [hour: string, prediction: int ... 1 more field]
+
+scala> predictCount.show()
++----+----------+-----+                                                         
+|hour|prediction|count|
++----+----------+-----+
+|  15|         0| 3318|
+|  14|         0| 3202|
+|  17|         0| 3080|
+|  20|         0| 2925|
+|  16|         0| 2891|
+|  21|         8| 2879|
+|  13|         0| 2862|
+|  21|         0| 2840|
+|  11|         0| 2799|
+|  15|         7| 2775|
+|  14|         7| 2775|
+|  12|         0| 2750|
+|  22|         7| 2741|
+|  20|         8| 2718|
+|  21|         7| 2691|
+|  10|         0| 2552|
+|  22|         0| 2513|
+|  22|         8| 2479|
+|  11|         7| 2466|
+|  09|         0| 2464|
++----+----------+-----+
+only showing top 20 rows
+
+
+scala> predictCount.write.csv("/sparkml/wei/predictCount.csv")
+                                                                                
+scala> val busyZones = prediction.groupBy("prediction").count()
+busyZones: org.apache.spark.sql.DataFrame = [prediction: int, count: bigint]
+
+scala> busyZones.show()
++----------+-----+
+|prediction|count|
++----------+-----+
+|         1| 1639|
+|         6| 2923|
+|         3| 8171|
+|         5| 4106|
+|         9|  534|
+|         4|27974|
+|         8|35689|
+|         7|36930|
+|         2|  705|
+|         0|44517|
++----------+-----+
+
+
+scala> busyZones.write.csv("/sparkml/wei/busyZones.csv")
+                                                                                
+scala> 
+
+scala> 
